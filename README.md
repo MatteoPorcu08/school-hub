@@ -1,4 +1,8 @@
+<p align="center"><img src="assets/schoolhub.svg" width="116" alt="Logo SchoolHub Rust"></p>
+
 # SchoolHub Rust — anteprima di accelerazione
+
+[Scarica la versione Windows](https://github.com/MatteoPorcu08/school-hub/releases) · [Controlla le compilazioni](https://github.com/MatteoPorcu08/school-hub/actions)
 
 Progetto indipendente per SchoolHub 2.6.7, con interfaccia originale Tkinter e percorso critico di scansione file in Rust. Non è ancora una riscrittura completa; è disponibile una pipeline per l'eseguibile Windows autonomo.
 
@@ -20,6 +24,14 @@ Scarica `SchoolHub-Setup.exe` (installer consigliato) oppure `SchoolHub.exe` (po
 L'app controlla automaticamente gli aggiornamenti all'avvio e ogni sei ore, scarica solo una versione stabile superiore dal repository MatteoPorcu08/school-hub, verifica dimensione e SHA-256, e attiva la nuova versione **al prossimo avvio**. Il file scaricato originale continua a funzionare da punto di ingresso. Non riavvia l'app durante una sincronizzazione. Gli aggiornamenti non sovrascrivono i documenti o il Vault. Le release non sono firmate con Authenticode: la fiducia dipende dal repository GitHub e da HTTPS, non da una firma indipendente. Windows SmartScreen potrebbe mostrare un avviso.
 
 Per pubblicare un aggiornamento, incrementare `VERSION` (es. 0.2.1) e fare push su main. GitHub Actions esegue test, compila l'EXE, verifica il pacchetto e pubblica la release con checksum solo in caso di successo. Non riutilizzare un tag già pubblicato.
+
+## Risoluzione problemi di installazione e avvio
+
+- Dalla versione 0.2.1, usare `SchoolHub-Setup.exe` per l'installazione guidata. L'eseguibile `SchoolHub.exe` è la variante portatile, non un installer.
+- Chiudere le istanze precedenti dell'app prima dell'installazione. Non eliminare i dati del profilo locale per reinstallare il programma.
+- Se l'interfaccia non si avvia, controllare `%LOCALAPPDATA%\\SchoolHubRust\\startup-error.log` e verificare la connessione a GitHub al primo avvio. In caso di problemi di sincronizzazione controllare anche `schoolhub.log` nella stessa cartella.
+- L'installer offre un collegamento per ottenere Git per Windows se non è già installato; Git, LFS e GCM servono alla sincronizzazione, non alla sola apertura dell'interfaccia.
+- I file SHA-256 allegati alle release consentono di verificare i download. Il software non è firmato digitalmente: non disabilitare le protezioni di Windows.
 
 ## Avvio in sviluppo (Windows)
 
