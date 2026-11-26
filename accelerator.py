@@ -1,9 +1,10 @@
-"""Original SchoolHub UI adapter. Never stores file contents in a persistent cache."""
+"""Original SchoolHub UI adapter; disk object caching is opt-in."""
 import os
 import re
 import subprocess
 import tempfile
 import threading
+from git_cache import SessionGitCache, CacheError
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -13,12 +14,10 @@ HEAD = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 def native_scan(root, binary, error_type=RuntimeError):
     import json
     root = Path(root)
-    if not root.exists():
-        return {}
     try:
         workers = max(1, min(8, int(os.environ.get("SCHOOLHUB_SCAN_WORKERS", "4"))))
         result = subprocess.run(
-            [str(binary), "scan", str(root.resolve()), str(workers)],
+            [str(binary), "scan", os.path.abspath(root), str(workers)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
@@ -66,6 +65,7 @@ def install(module, binary):
     original_clone = cls._clone_remote
     original_sync = cls.sync_worker
     index = RemoteIndex()
+    git_cache = SessionGitCache.from_environment()
 
     def scan(root):
         return native_scan(root, binary, module.WorkspaceError)
@@ -79,10 +79,22 @@ def install(module, binary):
         os.makedirs(parent, exist_ok=True)
         if os.path.lexists(destination):
             return original_clone(self, destination)
+        if git_cache is not None:
+            try:
+                git_cache.checkout(self.git, remote, branch, destination, getattr(self, "github_user", ""))
+                return
+            except CacheError:
+                # Never use the cached old commit after a failed fetch.
+                if os.path.lexists(destination):
+                    raise module.WorkspaceError("Impossibile rimuovere un checkout temporaneo incompleto")
+                self.write_log("Cache Git non utilizzabile: ripiego sul clone diretto.")
         code, out, err = self.git(
             ["clone", "--depth", "1", "--no-tags", "--single-branch",
              "--branch", branch, "--", remote, destination], cwd=parent)
         if code == 0:
+            branch_code, checked_out, _ = self.git(["symbolic-ref", "--short", "HEAD"], cwd=destination)
+            if branch_code != 0 or checked_out != branch:
+                raise module.WorkspaceError("Il riferimento selezionato non è un branch Git valido")
             self.git(["config", "credential.useHttpPath", "true"], cwd=destination)
             return
         # Git normally removes failed clones itself. Never delete an unexpected
@@ -114,6 +126,8 @@ def install(module, binary):
     def remote_manifest(self):
         key = key_for(self)
         head = remote_head(self)
+        if key_for(self) != key:
+            raise module.WorkspaceError("Configurazione GitHub modificata durante il controllo")
         hit = index.get(key, head)
         if hit is not None:
             return hit
@@ -124,7 +138,9 @@ def install(module, binary):
             files = scan(checkout)
             code, actual, _ = self.git(["rev-parse", "HEAD"], cwd=checkout)
             # Do not cache an unborn branch or a snapshot of a different commit.
-            if code == 0 and actual == head and key_for(self) == key:
+            if key_for(self) != key:
+                raise module.WorkspaceError("Configurazione GitHub modificata durante il controllo")
+            if code == 0 and actual == head:
                 index.put(key, actual, files)
             return files
 
