@@ -1,6 +1,6 @@
 # SchoolHub Rust — anteprima di accelerazione
 
-Progetto indipendente per SchoolHub 2.6.7, con interfaccia originale Tkinter e percorso critico di scansione file in Rust. Non è ancora una riscrittura completa né un installer.
+Progetto indipendente per SchoolHub 2.6.7, con interfaccia originale Tkinter e percorso critico di scansione file in Rust. Non è ancora una riscrittura completa; è disponibile una pipeline per l'eseguibile Windows autonomo.
 
 ## Cosa cambia
 
@@ -11,7 +11,15 @@ Progetto indipendente per SchoolHub 2.6.7, con interfaccia originale Tkinter e p
 - Modalità facoltativa di cache Git di sessione: `fetch` incrementale dei soli oggetti mancanti, clone locale senza rete e riuso degli oggetti LFS. Disattivata per impostazione predefinita perché il cache contiene documenti in chiaro.
 - Sincronizzazione con modifiche, gestione dei conflitti, cifratura AES-GCM del Vault, autenticazione e Git LFS rimangono nel codice originale. Non si introduce force-push; la cache dei documenti è solo opzionale e temporanea.
 
-La velocità effettiva non è ancora misurata: dipende da rete, SSD/HDD, dimensioni e quantità di file. Senza cache su disco un cambio di commit richiede ancora il clone remoto; le modifiche a file reali continuano a usare la pipeline originale. Non sono ancora disponibili un installer, una riscrittura Rust integrale o test end-to-end con l'account dell'utente.
+La velocità effettiva non è ancora misurata: dipende da rete, SSD/HDD, dimensioni e quantità di file. Senza cache su disco un cambio di commit richiede ancora il clone remoto; le modifiche a file reali continuano a usare la pipeline originale. Non sono ancora disponibili una riscrittura Rust integrale o test end-to-end con l'account dell'utente.
+
+## Eseguibile Windows e aggiornamenti automatici
+
+Scarica `SchoolHub.exe` dalla [release più recente](https://github.com/MatteoPorcu08/school-hub/releases/latest). Non occorre installare Python, Rust o Cargo; per sincronizzare occorre Git per Windows con Git LFS e GCM. Al primo avvio, dopo conferma del diritto di utilizzo, l'eseguibile scarica i sorgenti dell'interfaccia originale nel profilo locale e verifica i blob Git fissati. Serve Internet per il primo avvio; in seguito l'interfaccia può avviarsi offline.
+
+L'app controlla automaticamente gli aggiornamenti all'avvio e ogni sei ore, scarica solo una versione stabile superiore dal repository MatteoPorcu08/school-hub, verifica dimensione e SHA-256, e attiva la nuova versione **al prossimo avvio**. Il file scaricato originale continua a funzionare da punto di ingresso. Non riavvia l'app durante una sincronizzazione. Gli aggiornamenti non sovrascrivono i documenti o il Vault. Le release non sono firmate con Authenticode: la fiducia dipende dal repository GitHub e da HTTPS, non da una firma indipendente. Windows SmartScreen potrebbe mostrare un avviso.
+
+Per pubblicare un aggiornamento, incrementare `VERSION` (es. 0.2.1) e fare push su main. GitHub Actions esegue test, compila l'EXE, verifica il pacchetto e pubblica la release con checksum solo in caso di successo. Non riutilizzare un tag già pubblicato.
 
 ## Avvio in sviluppo (Windows)
 
