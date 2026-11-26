@@ -39,11 +39,11 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Install packaging dependencies
         run: python -m pip install -r requirements.txt "pyinstaller>=6.10,<7" Pillow
-      - name: Generate branded icon
-        run: python tools/make_logo.py
+      - name: Recover original logo and verified bundled runtime
+        run: python tools/prepare_windows.py
       - name: Build standalone Windows executable
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name SchoolHub --icon assets/schoolhub.ico --add-data "assets/schoolhub.ico;." --add-data "assets/schoolhub_icon.png;." --add-data "VERSION;." --hidden-import winreg --hidden-import secrets --hidden-import math --hidden-import errno --hidden-import datetime --add-binary "target/release/schoolhub-scan.exe;." --hidden-import tkinter.ttk --hidden-import tkinter.filedialog --hidden-import tkinter.simpledialog --hidden-import tkinter.messagebox desktop.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name SchoolHub --noupx --add-data "vendor;vendor" --icon assets/schoolhub.ico --add-data "assets/schoolhub.ico;." --add-data "assets/schoolhub_icon.png;." --add-data "VERSION;." --hidden-import winreg --hidden-import secrets --hidden-import math --hidden-import errno --hidden-import datetime --add-binary "target/release/schoolhub-scan.exe;." --hidden-import tkinter.ttk --hidden-import tkinter.filedialog --hidden-import tkinter.simpledialog --hidden-import tkinter.messagebox desktop.py
       - name: Smoke test packaged executable
         shell: pwsh
         run: |
@@ -100,5 +100,5 @@ jobs:
           $tag = "v$version"
           gh release view $tag --repo "${{ github.repository }}" 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "Release already exists. Increment VERSION for new builds."; exit 0 }
-          gh release create $tag dist/SchoolHub.exe dist/SchoolHub.exe.sha256 dist/SchoolHub-Setup.exe dist/SchoolHub-Setup.exe.sha256 --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "SchoolHub Rust $version" --notes "Windows executable with automatic verified updates. Original UI is downloaded locally with authorization on first launch. Git for Windows with Git LFS and GCM required for synchronization." --latest
+          gh release create $tag dist/SchoolHub.exe dist/SchoolHub.exe.sha256 dist/SchoolHub-Setup.exe dist/SchoolHub-Setup.exe.sha256 --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "SchoolHub $version" --notes "Windows executable with automatic verified updates. Original UI is downloaded locally with authorization on first launch. Original SchoolHub logo. GitHub browser login and internal MinGit, GCM and LFS included; no external Git installation needed." --latest
           if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }

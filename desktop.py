@@ -51,7 +51,7 @@ def prepare_ui(interactive=True):
     root.withdraw()
     try:
         if not messagebox.askyesno(
-            "SchoolHub Rust - Primo avvio",
+            "SchoolHub - Primo avvio",
             "L'interfaccia originale SchoolHub appartiene al suo autore. "
             "Il repository non dichiara una licenza di riutilizzo.\n\n"
             "Confermi di avere il diritto di utilizzarla e vuoi scaricarne i sorgenti "
@@ -59,12 +59,12 @@ def prepare_ui(interactive=True):
             parent=root,
         ):
             return False
-        root.title("SchoolHub Rust - Preparazione")
+        root.title("SchoolHub - Preparazione")
         root.geometry("480x180")
         root.resizable(False, False)
         root.configure(bg="#0a1120")
         root.iconbitmap(str(BUNDLE / "schoolhub.ico"))
-        tk.Label(root, text="SCHOOLHUB RUST", font=("Segoe UI", 19, "bold"), fg="#eff6ff", bg="#0a1120").pack(pady=(22, 8))
+        tk.Label(root, text="SCHOOLHUB", font=("Segoe UI", 19, "bold"), fg="#eff6ff", bg="#0a1120").pack(pady=(22, 8))
         status = tk.Label(root, text="Verifica dei componenti...", fg="#76daff", bg="#0a1120")
         status.pack(pady=5)
         progress = ttk.Progressbar(root, mode="indeterminate", length=360)
@@ -91,20 +91,6 @@ def load_original():
         return module
     load("workspace", SOURCE / "src" / "workspace.py")
     return load("schoolhub_gui", SOURCE / "src" / "schoolhub_gui.py")
-
-def find_git():
-    candidates = [shutil.which("git")]
-    for var in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
-        base = os.environ.get(var)
-        if base:
-            candidates.extend([str(pathlib.Path(base) / "Git" / "cmd" / "git.exe"),
-                               str(pathlib.Path(base) / "Programs" / "Git" / "cmd" / "git.exe")])
-    for candidate in candidates:
-        if candidate and pathlib.Path(candidate).is_file():
-            folder = str(pathlib.Path(candidate).parent)
-            os.environ["PATH"] = folder + os.pathsep + os.environ.get("PATH", "")
-            return True
-    return False
 
 def configure_gui(gui):
     gui.APP_DIR = str(PROFILE)
@@ -138,25 +124,35 @@ def configure_gui(gui):
                 if version:
                     message = f"Aggiornamento {version} scaricato e verificato. Si attiverà al prossimo avvio."
                     self.write_log(message)
-                    self.root.after(0, lambda: messagebox.showinfo("SchoolHub Rust", message))
+                    self.root.after(0, lambda: messagebox.showinfo("SchoolHub", message))
                 elif not silent:
-                    self.root.after(0, lambda: messagebox.showinfo("SchoolHub Rust", "Applicazione aggiornata."))
+                    self.root.after(0, lambda: messagebox.showinfo("SchoolHub", "Applicazione aggiornata."))
             except Exception as exc:
                 self.write_log(f"Aggiornamento Rust non disponibile: {type(exc).__name__}")
                 if not silent:
-                    self.root.after(0, lambda: messagebox.showwarning("SchoolHub Rust", "Impossibile controllare gli aggiornamenti. Riprova."))
+                    self.root.after(0, lambda: messagebox.showwarning("SchoolHub", "Impossibile controllare gli aggiornamenti. Riprova."))
             finally:
                 self.update_check_running = False
         threading.Thread(target=worker, daemon=True).start()
     gui.SchoolHub.check_for_updates = check_updates
     install(gui, SCANNER)
+    gui.APP_VERSION = VERSION
+
+    # Prefer the private bundled runtime; never require system Git.
+    original_git = gui.bundled_git_info
+    def bundled_only():
+        exe, env, bundled = original_git()
+        if not bundled:
+            raise RuntimeError("Runtime di sincronizzazione integrato mancante. Reinstalla SchoolHub.")
+        return exe, env, bundled
+    gui.bundled_git_info = bundled_only
 
     original_init = gui.SchoolHub.__init__
     def init(self, root):
         original_init(self, root)
-        root.title(f"SchoolHub Rust {VERSION}")
+        root.title(f"SchoolHub {VERSION}")
         root.iconbitmap(str(BUNDLE / "schoolhub.ico"))
-        self.logo_subtitle.configure(text="RUST • SECURE WORKSPACE")
+        self.logo_subtitle.configure(text="SECURE SCHOOL WORKSPACE")
         # Startup check already scheduled by the original UI. Repeat every six hours.
         def periodic():
             if self.running:
@@ -195,12 +191,21 @@ def ui_smoke(output):
         try:
             root.withdraw()
             app = gui.SchoolHub(root)
+            git_exe, git_env, bundled = gui.bundled_git_info()
+            assert bundled and pathlib.Path(git_exe).is_relative_to(BUNDLE)
+            for args in (["--version"], ["credential-manager", "--version"], ["lfs", "version"], ["credential-manager", "github", "login", "--help"]):
+                result = subprocess.run([git_exe, *args], env=git_env, capture_output=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                if result.returncode:
+                    raise RuntimeError(f"Runtime integrato: {args}: {result.stderr.decode('utf-8', 'replace')}")
+                if args[-1] == "--help":
+                    help_text = (result.stdout + result.stderr).decode("utf-8", "replace")
+                    assert "--web" in help_text and "--force" in help_text
             for page in ("Home", "Sync", "Workspace", "Attività", "Impostazioni"):
                 app.navigate(page)
                 root.update_idletasks()
             app.running = False
             root.update_idletasks()
-            assert root.title() == f"SchoolHub Rust {VERSION}"
+            assert root.title() == f"SchoolHub {VERSION}"
             assert gui.resource_path("schoolhub_icon.png")
         finally:
             root.destroy()
@@ -218,7 +223,6 @@ def main():
         return
     if not prepare_ui():
         return
-    find_git()
     gui = load_original()
     configure_gui(gui)
     gui.main()
@@ -236,5 +240,5 @@ if __name__ == "__main__":
             log.write(traceback.format_exc() + "\n")
         root = tk.Tk()
         root.withdraw()
-        messagebox.showerror("SchoolHub Rust", f"Avvio non riuscito: {exc}\nDettagli: {PROFILE / 'startup-error.log'}")
+        messagebox.showerror("SchoolHub", f"Avvio non riuscito: {exc}\nDettagli: {PROFILE / 'startup-error.log'}")
         root.destroy()

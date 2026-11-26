@@ -1,15 +1,15 @@
 #ifndef AppVersion
-  #define AppVersion "0.2.1"
+  #define AppVersion "0.2.2"
 #endif
 [Setup]
 AppId=SchoolHubRust.MatteoPorcu08
-AppName=SchoolHub Rust
+AppName=SchoolHub
 AppVersion={#AppVersion}
 AppPublisher=MatteoPorcu08
 AppPublisherURL=https://github.com/MatteoPorcu08/school-hub
 AppUpdatesURL=https://github.com/MatteoPorcu08/school-hub/releases
-DefaultDirName={localappdata}\Programs\SchoolHub Rust
-DefaultGroupName=SchoolHub Rust
+DefaultDirName={localappdata}\Programs\SchoolHub
+DefaultGroupName=SchoolHub
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -31,8 +31,7 @@ Name: "desktopicon"; Description: "Crea un collegamento sul desktop"; Flags: unc
 [Files]
 Source: "..\dist\SchoolHub.exe"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
-Name: "{autoprograms}\SchoolHub Rust"; Filename: "{app}\SchoolHub.exe"
-Name: "{autodesktop}\SchoolHub Rust"; Filename: "{app}\SchoolHub.exe"; Tasks: desktopicon
+Name: "{autoprograms}\SchoolHub"; Filename: "{app}\SchoolHub.exe"
+Name: "{autodesktop}\SchoolHub"; Filename: "{app}\SchoolHub.exe"; Tasks: desktopicon
 [Run]
-Filename: "{app}\SchoolHub.exe"; Description: "Avvia SchoolHub Rust"; Flags: nowait postinstall skipifsilent
-Filename: "https://git-scm.com/download/win"; Description: "Scarica Git per Windows (necessario per sincronizzare, se non presente)"; Flags: shellexec postinstall skipifsilent unchecked
+Filename: "{app}\SchoolHub.exe"; Description: "Avvia SchoolHub"; Flags: nowait postinstall skipifsilent
