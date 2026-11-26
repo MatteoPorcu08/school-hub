@@ -64,6 +64,8 @@ def make_binding(profile, legacy, selected, source, create=False):
     source = dict(source)
     raw_old = source.get("workspace_path")
     same = bool(raw_old and Path(raw_old).resolve() == selected)
+    if raw_old and not same and selected.exists() and Path(raw_old).exists():
+        same = selected.samefile(raw_old)
     # A vault is reused ONLY when it is associated with this exact workspace.
     candidates = []
     if same and source.get("vault_path"):

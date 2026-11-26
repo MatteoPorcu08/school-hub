@@ -235,8 +235,11 @@ def ui_smoke(output):
             mark("construct app")
             app = gui.SchoolHub(root)
             mark("app constructed")
-            assert pathlib.Path(app.workspace.get_unlocked_path()) == selected
-            assert (selected / "existing.txt").read_text(encoding="utf-8") == "existing"
+            actual = pathlib.Path(app.workspace.get_unlocked_path())
+            mark(f"workspace expected={selected} actual={actual} mode={app.config.get('workspace_mode')}")
+            assert actual.samefile(selected), f"Wrong workspace: {actual} != {selected}"
+            assert (actual / "existing.txt").read_text(encoding="utf-8") == "existing"
+            mark("existing folder verified")
             git_exe, git_env, bundled = gui.bundled_git_info()
             assert bundled and pathlib.Path(git_exe).is_relative_to(BUNDLE)
             for args in (["--version"], ["credential-manager", "--version"], ["lfs", "version"], ["credential-manager", "github", "login", "--help"]):
@@ -256,6 +259,9 @@ def ui_smoke(output):
             mark("all pages rendered")
             assert root.title() == f"SchoolHub {VERSION}"
             assert gui.resource_path("schoolhub_icon.png")
+        except BaseException:
+            mark(traceback.format_exc())
+            raise
         finally:
             mark("destroy Tk")
             root.destroy()
@@ -287,7 +293,9 @@ if __name__ == "__main__":
         if "--smoke" in sys.argv or "--ui-smoke" in sys.argv:
             if len(sys.argv) == 3:
                 pathlib.Path(sys.argv[2]).write_text(json.dumps({"ok": False, "error": traceback.format_exc()}), encoding="utf-8")
-            raise
+            # Windowed PyInstaller shows a blocking modal on unhandled errors.
+            # Return a real exit code to the test runner instead.
+            sys.exit(1)
         PROFILE.mkdir(parents=True, exist_ok=True)
         with (PROFILE / "startup-error.log").open("a", encoding="utf-8") as log:
             log.write(traceback.format_exc() + "\n")
