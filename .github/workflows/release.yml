@@ -5,6 +5,7 @@ on:
     paths:
       - VERSION
       - source_loader.py
+      - workspace_binding.py
       - tools/**
       - installer/**
       - desktop.py

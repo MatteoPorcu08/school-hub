@@ -4,6 +4,10 @@
 
 Progetto indipendente per SchoolHub 2.6.7, con interfaccia originale Tkinter e percorso critico di scansione file in Rust. Non è ancora una riscrittura completa; è disponibile una pipeline per l'eseguibile Windows autonomo.
 
+## Cartella SchoolHub già presente sul disco
+
+All'avvio della versione 0.2.3 viene proposta la cartella salvata dall'app originale (se esiste) o quella del profilo precedente. Si può scegliere un'altra cartella già esistente in qualsiasi disco. Il percorso predefinito dell'app originale è `%LOCALAPPDATA%\\SchoolHub\\Workspaces\\Scuola`. Non vengono spostati o rinominati documenti o Vault durante il collegamento. Se è presente un Vault valido collegato a quel percorso, resta disponibile con la password originale; altrimenti l'app può sincronizzare direttamente la cartella normale, senza cifratura obbligatoria. I file locali sostituiti o rimossi vengono conservati in `%LOCALAPPDATA%\\SchoolHubRust\\Backups\\FolderRecovery` (non cifrati). Il repository GitHub e il branch precedenti sono recuperati soltanto quando il percorso coincide. La prima sync confronta entrambe le versioni senza assumere una vecchia baseline; i conflitti richiedono scelta esplicita. Lo stato successivo è separato per percorso, repository e branch. Per sicurezza la prima sincronizzazione è manuale; si può poi attivare l'automatica nelle impostazioni. Non utilizzare il repository del codice per i documenti.
+
 ## Cosa cambia
 
 - Scansione SHA-256 parallela e limitata a 1–8 thread, senza affidarsi alla sola data di modifica. Output compatibile con le mappe di hash di SchoolHub.
@@ -47,7 +51,7 @@ py -m venv .venv
 
 Per limitare il parallelismo su HDD: `$env:SCHOOLHUB_SCAN_WORKERS="1"`.
 
-L'anteprima usa un profilo locale separato `%LOCALAPPDATA%\SchoolHubRust`. Non punta automaticamente al workspace esistente e non modifica il suo avvio automatico. Gli aggiornamenti originali sono disabilitati nell'anteprima. Usare inizialmente una copia di prova del workspace; non collegare il Vault originale fino alla verifica di compatibilità.
+L'anteprima usa un profilo locale separato `%LOCALAPPDATA%\SchoolHubRust`. Nella versione Windows il percorso dei documenti viene scelto esplicitamente come descritto sopra. L'avvio automatico Windows originale non viene modificato. Gli aggiornamenti originali sono disabilitati nell'anteprima. Usare inizialmente una copia di prova del workspace; non collegare il Vault originale fino alla verifica di compatibilità.
 
 **Importante:** questo repository pubblico contiene codice, non deve essere selezionato come repository di sincronizzazione dei documenti scolastici. Il Vault originale protegge i file locali, ma il flusso Git originale può caricare file in chiaro; usare un repository dati privato separato.
 

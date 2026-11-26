@@ -33,10 +33,12 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from accelerator import install, native_scan
 from updater import dispatch_pending, stage_latest
 from source_loader import REV, FILES, verified, prepare_sources
+from workspace_binding import choose_binding, install_binding, make_binding
 
 BUNDLE = pathlib.Path(getattr(sys, "_MEIPASS", pathlib.Path(__file__).resolve().parent))
 VERSION = (BUNDLE / "VERSION").read_text(encoding="utf-8").strip()
 PROFILE = pathlib.Path(os.environ.get("LOCALAPPDATA", pathlib.Path.home())) / "SchoolHubRust"
+LEGACY = PROFILE.parent / "SchoolHub"
 UPDATES = PROFILE / "AppUpdates"
 SOURCE = PROFILE / "OriginalUI" / REV
 SCANNER = BUNDLE / "schoolhub-scan.exe"
@@ -137,6 +139,7 @@ def configure_gui(gui):
     gui.SchoolHub.check_for_updates = check_updates
     install(gui, SCANNER)
     gui.APP_VERSION = VERSION
+    install_binding(gui, PROFILE, LEGACY)
 
     # Prefer the private bundled runtime; never require system Git.
     original_git = gui.bundled_git_info
@@ -175,15 +178,19 @@ def smoke(output):
     pathlib.Path(output).write_text(json.dumps({"ok": True, "version": VERSION}), encoding="utf-8")
 
 def ui_smoke(output):
-    global PROFILE, UPDATES, SOURCE
+    global PROFILE, UPDATES, SOURCE, LEGACY
     with tempfile.TemporaryDirectory(prefix="schoolhub-ui-test-") as d:
-        PROFILE = pathlib.Path(d)
+        PROFILE = pathlib.Path(d) / "optimized"
+        LEGACY = pathlib.Path(d) / "original"
         UPDATES = PROFILE / "AppUpdates"
         SOURCE = PROFILE / "OriginalUI" / REV
         prepare_ui(interactive=False)
         gui = load_original()
         configure_gui(gui)
-        config = gui.default_config()
+        selected = LEGACY / "Workspaces" / "Scuola"
+        selected.mkdir(parents=True)
+        (selected / "existing.txt").write_text("existing", encoding="utf-8")
+        config = make_binding(PROFILE, LEGACY, selected, {})
         config["onboarding_complete"] = True
         config["auto_sync"] = False
         gui.save_config(config)
@@ -191,6 +198,8 @@ def ui_smoke(output):
         try:
             root.withdraw()
             app = gui.SchoolHub(root)
+            assert pathlib.Path(app.workspace.get_unlocked_path()) == selected
+            assert (selected / "existing.txt").read_text(encoding="utf-8") == "existing"
             git_exe, git_env, bundled = gui.bundled_git_info()
             assert bundled and pathlib.Path(git_exe).is_relative_to(BUNDLE)
             for args in (["--version"], ["credential-manager", "--version"], ["lfs", "version"], ["credential-manager", "github", "login", "--help"]):
@@ -225,6 +234,8 @@ def main():
         return
     gui = load_original()
     configure_gui(gui)
+    if not choose_binding(gui, PROFILE, LEGACY):
+        return
     gui.main()
 
 if __name__ == "__main__":
