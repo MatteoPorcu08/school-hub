@@ -1,0 +1,19 @@
+[package]
+name = "schoolhub-scan"
+version = "0.1.0"
+edition = "2021"
+description = "Parallel SHA-256 scanner for SchoolHub"
+
+[dependencies]
+rayon = "1.10"
+serde_json = "1.0"
+sha2 = "0.10"
+walkdir = "2.5"
+
+[dev-dependencies]
+tempfile = "3.13"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
