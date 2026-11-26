@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - VERSION
+      - source_loader.py
+      - tools/**
+      - installer/**
       - desktop.py
       - updater.py
       - accelerator.py
@@ -35,10 +38,12 @@ jobs:
       - name: Test sync and updater
         run: python -m unittest discover -s tests -v
       - name: Install packaging dependencies
-        run: python -m pip install -r requirements.txt "pyinstaller>=6.10,<7"
+        run: python -m pip install -r requirements.txt "pyinstaller>=6.10,<7" Pillow
+      - name: Generate branded icon
+        run: python tools/make_logo.py
       - name: Build standalone Windows executable
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name SchoolHub --add-data "VERSION;." --add-binary "target/release/schoolhub-scan.exe;." --hidden-import tkinter.ttk --hidden-import tkinter.filedialog --hidden-import tkinter.simpledialog --hidden-import tkinter.messagebox desktop.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name SchoolHub --icon assets/schoolhub.ico --add-data "assets/schoolhub.ico;." --add-data "assets/schoolhub_icon.png;." --add-data "VERSION;." --hidden-import winreg --hidden-import secrets --hidden-import math --hidden-import errno --hidden-import datetime --add-binary "target/release/schoolhub-scan.exe;." --hidden-import tkinter.ttk --hidden-import tkinter.filedialog --hidden-import tkinter.simpledialog --hidden-import tkinter.messagebox desktop.py
       - name: Smoke test packaged executable
         shell: pwsh
         run: |
@@ -47,17 +52,44 @@ jobs:
           if ($p.ExitCode -ne 0 -or !(Test-Path $output)) { throw "Packaged smoke test failed" }
           $result = Get-Content $output -Raw | ConvertFrom-Json
           if (!$result.ok) { throw "Packaged scanner or crypto test failed" }
+      - name: Test full original UI in packaged executable
+        shell: pwsh
+        run: |
+          $output = Join-Path $PWD "ui-smoke.json"
+          $p = Start-Process -FilePath ".\dist\SchoolHub.exe" -ArgumentList @("--ui-smoke", ('"' + $output + '"')) -PassThru
+          if (!$p.WaitForExit(180000)) { Stop-Process -Id $p.Id -Force; throw "UI startup timed out" }
+          if (Test-Path $output) { Get-Content $output }
+          if ($p.ExitCode -ne 0 -or !(Test-Path $output)) { throw "Full UI startup failed" }
+          if (!(Get-Content $output -Raw | ConvertFrom-Json).ok) { throw "UI startup test failed" }
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { choco install innosetup -y --no-progress; if ($LASTEXITCODE -ne 0) { throw "Inno Setup unavailable" } }
+          $version = (Get-Content VERSION -Raw).Trim()
+          & $iscc "/DAppVersion=$version" installer\SchoolHub.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
+      - name: Test silent installation
+        shell: pwsh
+        run: |
+          $testDir = Join-Path $env:RUNNER_TEMP "SchoolHubInstallTest"
+          $p = Start-Process -FilePath ".\dist\SchoolHub-Setup.exe" -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", ('/DIR="' + $testDir + '"')) -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path (Join-Path $testDir "SchoolHub.exe"))) { throw "Installer smoke test failed" }
       - name: Generate SHA-256
         shell: pwsh
         run: |
           $digest = (Get-FileHash dist/SchoolHub.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           Set-Content -Path dist/SchoolHub.exe.sha256 -Value "$digest  SchoolHub.exe" -Encoding ascii
+          $setupDigest = (Get-FileHash dist/SchoolHub-Setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path dist/SchoolHub-Setup.exe.sha256 -Value "$setupDigest  SchoolHub-Setup.exe" -Encoding ascii
       - uses: actions/upload-artifact@v4
         with:
           name: SchoolHub-Windows
           path: |
             dist/SchoolHub.exe
             dist/SchoolHub.exe.sha256
+            dist/SchoolHub-Setup.exe
+            dist/SchoolHub-Setup.exe.sha256
       - name: Publish new release (immutable version)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -68,5 +100,5 @@ jobs:
           $tag = "v$version"
           gh release view $tag --repo "${{ github.repository }}" 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "Release already exists. Increment VERSION for new builds."; exit 0 }
-          gh release create $tag dist/SchoolHub.exe dist/SchoolHub.exe.sha256 --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "SchoolHub Rust $version" --notes "Windows executable with automatic verified updates. Original UI is downloaded locally with authorization on first launch. Git for Windows with Git LFS and GCM required for synchronization." --latest
+          gh release create $tag dist/SchoolHub.exe dist/SchoolHub.exe.sha256 dist/SchoolHub-Setup.exe dist/SchoolHub-Setup.exe.sha256 --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "SchoolHub Rust $version" --notes "Windows executable with automatic verified updates. Original UI is downloaded locally with authorization on first launch. Git for Windows with Git LFS and GCM required for synchronization." --latest
           if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }
