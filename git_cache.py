@@ -7,10 +7,18 @@ import atexit
 import hashlib
 import json
 import os
+import stat
 import shutil
 import tempfile
 import threading
 from pathlib import Path
+
+def remove_tree(path):
+    def retry(func, name, exc_info):
+        os.chmod(name, stat.S_IREAD | stat.S_IWRITE | stat.S_IEXEC)
+        func(name)
+    if os.path.isdir(path) and not os.path.islink(path):
+        shutil.rmtree(path, onerror=retry)
 
 class CacheError(RuntimeError):
     pass
@@ -32,7 +40,10 @@ class SessionGitCache:
     def close(self):
         # Best effort: abrupt termination may leave this directory behind.
         with self._lock:
-            shutil.rmtree(self.root, ignore_errors=True)
+            try:
+                remove_tree(self.root)
+            except OSError:
+                pass
 
     @staticmethod
     def _run(git, args, cwd, timeout=180):
@@ -79,5 +90,8 @@ class SessionGitCache:
             # We only create this destination after checking it did not exist.
             # Do not follow symlinks or discard any other directories.
             if destination.is_dir() and not destination.is_symlink():
-                shutil.rmtree(destination, ignore_errors=True)
+                try:
+                    remove_tree(destination)
+                except OSError:
+                    pass
             raise CacheError("Checkout incrementale non riuscito") from exc
