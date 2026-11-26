@@ -110,6 +110,30 @@ def configure_gui(gui):
             return str(BUNDLE / "schoolhub_icon.png")
         return original_resource_path(name)
     gui.resource_path = resource_path
+    # Idempotent responsive sizing: Tk can repeatedly emit Configure when
+    # a widget is reconfigured with its existing value. Avoid idle-event loops.
+    def responsive_wraps(self, available_width=None):
+        if not self.widget_alive(getattr(self, "content", None)):
+            return
+        cap = max(240, int(available_width or max(320, self.content.winfo_width())) - 70)
+        stack = [self.content]
+        while stack:
+            parent = stack.pop()
+            for widget in parent.winfo_children():
+                stack.append(widget)
+                if isinstance(widget, tk.Label):
+                    try:
+                        current = int(float(widget.cget("wraplength") or 0))
+                    except (ValueError, TypeError, tk.TclError):
+                        continue
+                    if current <= 0:
+                        continue
+                    if not hasattr(widget, "_schoolhub_wrap_base"):
+                        widget._schoolhub_wrap_base = current
+                    target = min(widget._schoolhub_wrap_base, cap)
+                    if current != target:
+                        widget.configure(wraplength=target)
+    gui.SchoolHub._apply_responsive_wraps = responsive_wraps
     def no_autorun(self, enabled):
         if enabled:
             self.write_log("Avvio automatico Windows non configurato dall'anteprima Rust.")
@@ -130,9 +154,9 @@ def configure_gui(gui):
                 elif not silent:
                     self.root.after(0, lambda: messagebox.showinfo("SchoolHub", "Applicazione aggiornata."))
             except Exception as exc:
-                self.write_log(f"Aggiornamento Rust non disponibile: {type(exc).__name__}")
+                self.write_log(f"Aggiornamento non disponibile: {type(exc).__name__}: {exc}")
                 if not silent:
-                    self.root.after(0, lambda: messagebox.showwarning("SchoolHub", "Impossibile controllare gli aggiornamenti. Riprova."))
+                    self.root.after(0, lambda detail=str(exc): messagebox.showwarning("SchoolHub", f"Impossibile controllare gli aggiornamenti.\n\n{detail}\n\nConsulta le release GitHub."))
             finally:
                 self.update_check_running = False
         threading.Thread(target=worker, daemon=True).start()
@@ -179,30 +203,44 @@ def smoke(output):
 
 def ui_smoke(output):
     global PROFILE, UPDATES, SOURCE, LEGACY
+    trace_path = pathlib.Path(output + ".trace")
+    def mark(stage):
+        with trace_path.open("a", encoding="utf-8") as trace:
+            trace.write(stage + "\n")
+            trace.flush()
+    mark("start")
     with tempfile.TemporaryDirectory(prefix="schoolhub-ui-test-") as d:
         PROFILE = pathlib.Path(d) / "optimized"
         LEGACY = pathlib.Path(d) / "original"
         UPDATES = PROFILE / "AppUpdates"
         SOURCE = PROFILE / "OriginalUI" / REV
+        mark("prepare original source")
         prepare_ui(interactive=False)
+        mark("load original modules")
         gui = load_original()
         configure_gui(gui)
+        mark("configured")
         selected = LEGACY / "Workspaces" / "Scuola"
         selected.mkdir(parents=True)
         (selected / "existing.txt").write_text("existing", encoding="utf-8")
+        mark("bind existing folder")
         config = make_binding(PROFILE, LEGACY, selected, {})
         config["onboarding_complete"] = True
         config["auto_sync"] = False
         gui.save_config(config)
+        mark("create Tk")
         root = tk.Tk()
         try:
             root.withdraw()
+            mark("construct app")
             app = gui.SchoolHub(root)
+            mark("app constructed")
             assert pathlib.Path(app.workspace.get_unlocked_path()) == selected
             assert (selected / "existing.txt").read_text(encoding="utf-8") == "existing"
             git_exe, git_env, bundled = gui.bundled_git_info()
             assert bundled and pathlib.Path(git_exe).is_relative_to(BUNDLE)
             for args in (["--version"], ["credential-manager", "--version"], ["lfs", "version"], ["credential-manager", "github", "login", "--help"]):
+                mark("runtime " + " ".join(args))
                 result = subprocess.run([git_exe, *args], env=git_env, capture_output=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 if result.returncode:
                     raise RuntimeError(f"Runtime integrato: {args}: {result.stderr.decode('utf-8', 'replace')}")
@@ -210,14 +248,18 @@ def ui_smoke(output):
                     help_text = (result.stdout + result.stderr).decode("utf-8", "replace")
                     assert "--web" in help_text and "--force" in help_text
             for page in ("Home", "Sync", "Workspace", "Attività", "Impostazioni"):
+                mark("navigate " + page)
                 app.navigate(page)
                 root.update_idletasks()
+                mark("rendered " + page)
             app.running = False
-            root.update_idletasks()
+            mark("all pages rendered")
             assert root.title() == f"SchoolHub {VERSION}"
             assert gui.resource_path("schoolhub_icon.png")
         finally:
+            mark("destroy Tk")
             root.destroy()
+    mark("finished")
     pathlib.Path(output).write_text(json.dumps({"ok": True, "version": VERSION, "ui": True}), encoding="utf-8")
 
 def main():

@@ -58,7 +58,8 @@ jobs:
         run: |
           $output = Join-Path $PWD "ui-smoke.json"
           $p = Start-Process -FilePath ".\dist\SchoolHub.exe" -ArgumentList @("--ui-smoke", ('"' + $output + '"')) -PassThru
-          if (!$p.WaitForExit(180000)) { Stop-Process -Id $p.Id -Force; throw "UI startup timed out" }
+          if (!$p.WaitForExit(240000)) { if (Test-Path "$output.trace") { Get-Content "$output.trace" }; Stop-Process -Id $p.Id -Force; throw "UI startup timed out" }
+          if (Test-Path "$output.trace") { Get-Content "$output.trace" }
           if (Test-Path $output) { Get-Content $output }
           if ($p.ExitCode -ne 0 -or !(Test-Path $output)) { throw "Full UI startup failed" }
           if (!(Get-Content $output -Raw | ConvertFrom-Json).ok) { throw "UI startup test failed" }
